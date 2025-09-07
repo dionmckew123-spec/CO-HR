@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Onboarding</title>
+  </head>
+  <body>
+    <h2>Onboarding Agreements</h2>
+    <p id="error" style="color: red;"></p>
+    <form id="onboardingForm">
+      <label>
+        <input type="checkbox" id="policy" /> Policy Adherence Agreement signed
+      </label>
+      <br />
+      <label>
+        <input type="checkbox" id="confidentiality" /> Confidentiality Agreement signed
+      </label>
+      <br />
+      <button type="submit">Save</button>
+    </form>
+    <p><a href="/leaves.html">Leaves</a> | <a href="/tickets.html">Tickets</a> | <a href="#" id="logout">Logout</a></p>
+    <script>
+      // Helper to get token
+      function getToken() {
+        return localStorage.getItem('token');
+      }
+      // Logout
+      document.getElementById('logout').addEventListener('click', (e) => {
+        e.preventDefault();
+        localStorage.removeItem('token');
+        window.location.href = '/login.html';
+      });
+      // Fetch current status
+      async function fetchStatus() {
+        const token = getToken();
+        if (!token) {
+          window.location.href = '/login.html';
+          return;
+        }
+        try {
+          const res = await fetch('/onboarding/status', {
+            headers: { Authorization: 'Bearer ' + token },
+          });
+          if (res.status === 401) {
+            localStorage.removeItem('token');
+            window.location.href = '/login.html';
+            return;
+          }
+          const data = await res.json();
+          document.getElementById('policy').checked = data.policy_signed;
+          document.getElementById('confidentiality').checked = data.confidentiality_signed;
+        } catch (err) {
+          document.getElementById('error').textContent = err.message;
+        }
+      }
+      fetchStatus();
+      // Handle submit
+      document.getElementById('onboardingForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const token = getToken();
+        if (!token) {
+          window.location.href = '/login.html';
+          return;
+        }
+        const payload = {
+          policy_signed: document.getElementById('policy').checked,
+          confidentiality_signed: document.getElementById('confidentiality').checked,
+        };
+        try {
+          const res = await fetch('/onboarding/sign', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: 'Bearer ' + token,
+            },
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) {
+            const text = await res.text();
+            document.getElementById('error').textContent = text || 'Failed to update';
+            return;
+          }
+          document.getElementById('error').textContent = 'Saved!';
+        } catch (err) {
+          document.getElementById('error').textContent = err.message;
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login</title>
+  </head>
+  <body>
+    <h2>Login</h2>
+    <form id="loginForm">
+      <label>Email: <input type="email" id="email" required /></label><br />
+      <label>Password: <input type="password" id="password" required /></label><br />
+      <button type="submit">Login</button>
+      <p id="error" style="color: red;"></p>
+    </form>
+    <script>
+      document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const data = new URLSearchParams();
+        data.append('username', email);
+        data.append('password', password);
+        try {
+          const resp = await fetch('/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: data,
+          });
+          if (!resp.ok) {
+            document.getElementById('error').textContent = 'Login failed';
+            return;
+          }
+          const json = await resp.json();
+          localStorage.setItem('token', json.access_token);
+          window.location.href = '/onboarding.html';
+        } catch (err) {
+          document.getElementById('error').textContent = err.message;
+        }
+      });
+    </script>
+  </body>
+</html>

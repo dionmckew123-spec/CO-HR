@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Leaves</title>
+  </head>
+  <body>
+    <h2>Leave Requests</h2>
+    <p><a href="/onboarding.html">Onboarding</a> | <a href="/tickets.html">Tickets</a> | <a href="#" id="logout">Logout</a></p>
+    <p id="error" style="color: red;"></p>
+    <form id="leaveForm">
+      <label>
+        Type:
+        <select id="type">
+          <option value="annual">Annual</option>
+          <option value="emergency">Emergency</option>
+          <option value="sick">Sick</option>
+        </select>
+      </label>
+      <br />
+      <label>
+        Start Date: <input type="date" id="start_date" required />
+      </label>
+      <br />
+      <label>
+        End Date: <input type="date" id="end_date" required />
+      </label>
+      <br />
+      <label>
+        Reason (optional): <input type="text" id="reason" />
+      </label>
+      <br />
+      <button type="submit">Submit Leave Request</button>
+    </form>
+    <h3>Your Leave History</h3>
+    <table id="leaveTable" border="1" cellpadding="4">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Start</th>
+          <th>End</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <script>
+      function getToken() {
+        return localStorage.getItem('token');
+      }
+      function logout() {
+        localStorage.removeItem('token');
+        window.location.href = '/login.html';
+      }
+      document.getElementById('logout').addEventListener('click', (e) => {
+        e.preventDefault();
+        logout();
+      });
+      async function fetchLeaves() {
+        const token = getToken();
+        if (!token) {
+          window.location.href = '/login.html';
+          return;
+        }
+        try {
+          const res = await fetch('/leaves/', {
+            headers: { Authorization: 'Bearer ' + token },
+          });
+          if (res.status === 401) {
+            logout();
+            return;
+          }
+          const leaves = await res.json();
+          const tbody = document.querySelector('#leaveTable tbody');
+          tbody.innerHTML = '';
+          leaves.forEach((lv) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${lv.type}</td><td>${lv.start_date}</td><td>${lv.end_date}</td><td>${lv.status}</td>`;
+            tbody.appendChild(tr);
+          });
+        } catch (err) {
+          document.getElementById('error').textContent = err.message;
+        }
+      }
+      fetchLeaves();
+      document.getElementById('leaveForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const token = getToken();
+        if (!token) {
+          window.location.href = '/login.html';
+          return;
+        }
+        const payload = {
+          type: document.getElementById('type').value,
+          start_date: document.getElementById('start_date').value,
+          end_date: document.getElementById('end_date').value,
+          reason: document.getElementById('reason').value || undefined,
+        };
+        try {
+          const res = await fetch('/leaves/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: 'Bearer ' + token,
+            },
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) {
+            const text = await res.text();
+            document.getElementById('error').textContent = text || 'Failed to create leave';
+            return;
+          }
+          // Clear form and refresh
+          document.getElementById('reason').value = '';
+          document.getElementById('start_date').value = '';
+          document.getElementById('end_date').value = '';
+          document.getElementById('error').textContent = 'Leave submitted!';
+          fetchLeaves();
+        } catch (err) {
+          document.getElementById('error').textContent = err.message;
+        }
+      });
+    </script>
+  </body>
+</html>
