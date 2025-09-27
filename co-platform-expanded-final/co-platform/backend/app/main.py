@@ -1,17 +1,15 @@
-"""Entry point for the FastAPI application.
+"""Entry point for the FastAPI application."""
 
-This module creates the FastAPI app, includes all routers, and sets up
-middleware such as CORS. On startup it initialises the database
-schema if necessary.
-"""
-
+import asyncio
 import os
-from typing import List
+import time
+from contextlib import suppress
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
-from .database import Base, engine
+from .database import Base, SessionLocal, engine
 from .routers import (
     auth,
     users,
@@ -32,7 +30,10 @@ from .routers import (
     audit,
     dsar,
     retention,
+    health,
 )
+from .services.jobs import nightly_job_manager
+from .services.metrics import metrics_collector
 
 
 def create_app() -> FastAPI:
@@ -40,6 +41,7 @@ def create_app() -> FastAPI:
 
     # Initialise database tables
     Base.metadata.create_all(bind=engine)
+    nightly_job_manager.configure(SessionLocal)
 
     # Configure CORS
     allowed_origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
@@ -74,14 +76,40 @@ def create_app() -> FastAPI:
     app.include_router(attachments.router)
     app.include_router(search.router)
     app.include_router(audit.router)
+    app.include_router(audit.legacy_router)
     app.include_router(dsar.router)
     app.include_router(retention.router)
+    app.include_router(health.router)
+
+    @app.middleware("http")
+    async def record_metrics(request: Request, call_next):  # type: ignore[override]
+        start = time.perf_counter()
+        success = False
+        try:
+            response = await call_next(request)
+            success = response.status_code < 500
+            return response
+        finally:
+            duration = time.perf_counter() - start
+            metrics_collector.record_request(request.url.path, duration, success)
+
+    @app.on_event("startup")
+    async def start_nightly_jobs() -> None:
+        app.state.nightly_task = asyncio.create_task(nightly_job_manager.run_scheduler())
+
+    @app.on_event("shutdown")
+    async def stop_nightly_jobs() -> None:
+        nightly_job_manager.stop()
+        task = getattr(app.state, "nightly_task", None)
+        if task:
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
 
     # Serve static HTML pages and assets from the ``static`` directory. This
     # allows a simple browser-based front‑end without requiring a separate
     # build step. Any path that does not match an API endpoint will fall
     # through to the static files handler.
-    from fastapi.staticfiles import StaticFiles
     static_dir = os.path.join(os.path.dirname(__file__), "static")
     app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
 

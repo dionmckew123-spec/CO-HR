@@ -534,7 +534,7 @@ export async function createAttachment(att) {
 //
 
 export async function listAuditLogs() {
-  const res = await fetch(`${API_BASE}/audit-logs/`, {
+  const res = await fetch(`${API_BASE}/audit/logs`, {
     headers: {
       'Accept': 'application/json',
       ...getAuthHeaders(),
@@ -542,6 +542,45 @@ export async function listAuditLogs() {
   });
   if (!res.ok) {
     throw new Error('Failed to fetch audit logs');
+  }
+  return res.json();
+}
+
+export async function verifyAuditHashChain() {
+  const res = await fetch(`${API_BASE}/audit/verify-hash-chain`, {
+    headers: {
+      'Accept': 'application/json',
+      ...getAuthHeaders(),
+    },
+  });
+  if (!res.ok) {
+    throw new Error('Failed to verify audit chain');
+  }
+  return res.json();
+}
+
+export async function exportAuditLogs(format = 'json') {
+  const res = await fetch(`${API_BASE}/audit/export?fmt=${format}`, {
+    headers: {
+      'Accept': 'application/json',
+      ...getAuthHeaders(),
+    },
+  });
+  if (!res.ok) {
+    throw new Error('Failed to export audit logs');
+  }
+  return res.json();
+}
+
+export async function getHealthStatus() {
+  const res = await fetch(`${API_BASE}/health`, {
+    headers: {
+      'Accept': 'application/json',
+      ...getAuthHeaders(),
+    },
+  });
+  if (!res.ok) {
+    throw new Error('Failed to fetch health status');
   }
   return res.json();
 }
