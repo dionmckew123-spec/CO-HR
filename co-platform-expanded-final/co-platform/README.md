@@ -183,13 +183,38 @@ detail page. The current implementation is naive; integrate a proper
 search engine (e.g. PostgreSQL full‑text search or Elasticsearch) for
 production use.
 
-## Audit Logs
+## Audit Logs & Integrity
 
-Audit logs are available via the API at `/audit-logs/` (clearance ≥ 5
-required). The UI does not yet expose them. To record actions, add
-`AuditLog` creation calls in each router (e.g. when approvals are updated
-or webhooks are modified). Extend the Audit endpoints and build a
-frontend view to explore audit records.
+Audit logs are now available under the `/audit` namespace (clearance ≥ 5
+required):
+
+- `GET /audit/logs` returns the ordered audit feed.
+- `GET /audit/verify-hash-chain` validates the tamper-evident hash chain
+  and reports any gaps.
+- `GET /audit/export?fmt=json|csv` exports the log with a detached HMAC
+  signature so the payload can be verified offline.
+
+To record actions, add `AuditLog` creation calls in each router (e.g.
+when approvals are updated or webhooks are modified). Extend the Audit
+endpoints and build a frontend view to explore audit records.
+
+Nightly jobs automatically verify the audit chain and log outcomes in
+the audit trail. Failures raise alerts that surface in the System Health
+widget.
+
+## System Health & Nightly Operations
+
+The backend exposes `/health`, `/ready` and `/metrics` endpoints. These
+drive the dashboard’s System Health card and can be scraped by external
+monitoring. The health report lists any degraded components rather than
+failing outright so the application remains usable while services are
+restored.
+
+Nightly maintenance runs at 02:00 UTC and performs probation reminders,
+retention cleanup (respecting legal holds and extensions), simulated
+database backups (retaining 14 days), audit hash-chain verification and
+IMAP ticket ingestion. Results are written to the audit log and any
+failures trigger alerts that appear in `/health`.
 
 ## Security & Permissions
 
@@ -220,10 +245,11 @@ frontend view to explore audit records.
   routers: create an approval record when a request is made and require an
   approval before changing the request status.
 * **Retention & audit** – use the `/retention/cleanup` endpoint (requires
-  the `privacy.retention` permission) to purge records older than a
-  specified number of years. Schedule this operation periodically (e.g.
-  via cron). Record actions via `AuditLog` by adding logging statements to
-  your endpoints.
+  the `privacy.retention` permission) to purge or anonymise records older
+  than the default four-year window. Extensions can be managed via
+  `/retention/extensions` to respect legal holds granted by the
+  Information Assurance Council. Record actions via `AuditLog` by adding
+  logging statements to your endpoints.
 * **DSAR exports** – call `/dsar/{user_id}` from a user account (for your
   own data) or from an account with the `privacy.dsar` permission to obtain
   a JSON document containing all data about the specified user. The

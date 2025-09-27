@@ -311,6 +311,24 @@ class AuditLogOut(BaseModel):
     entity_id: Optional[int]
     timestamp: date
     details: Optional[str]
+    prev_hash: Optional[str]
+    entry_hash: Optional[str]
+    retention_expires_at: Optional[date]
+    legal_hold: bool
+
+    class Config:
+        from_attributes = True
+
+
+class RetentionExtensionCreate(BaseModel):
+    entity_type: str
+    entity_id: int
+    extended_until: date
+    reason: Optional[str] = None
+
+
+class RetentionExtensionOut(RetentionExtensionCreate):
+    id: int
 
     class Config:
         from_attributes = True

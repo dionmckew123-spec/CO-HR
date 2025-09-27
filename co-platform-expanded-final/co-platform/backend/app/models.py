@@ -394,5 +394,21 @@ class AuditLog(Base):
     entity_id = Column(Integer, nullable=True)
     timestamp = Column(Date, nullable=False)
     details = Column(Text, nullable=True)
+    prev_hash = Column(String, nullable=True)
+    entry_hash = Column(String, nullable=True)
+    retention_expires_at = Column(Date, nullable=True)
+    legal_hold = Column(Boolean, default=False, nullable=False)
 
     user = relationship("User", backref="audit_logs")
+
+
+class RetentionExtension(Base):
+    """Records retention overrides authorised by the Information Assurance Council."""
+
+    __tablename__ = "retention_extensions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    entity_type = Column(String, nullable=False)
+    entity_id = Column(Integer, nullable=False)
+    extended_until = Column(Date, nullable=False)
+    reason = Column(Text, nullable=True)

@@ -5,6 +5,7 @@ import {
   getTickets,
   getOnboardingStatus,
   getIncidents,
+  getHealthStatus,
 } from '../lib/api.js';
 
 import { Link } from 'react-router-dom';
@@ -21,29 +22,74 @@ export default function DashboardPage() {
   const [tickets, setTickets] = useState([]);
   const [onboarding, setOnboarding] = useState(null);
   const [incidents, setIncidents] = useState([]);
+  const [health, setHealth] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    let cancelled = false;
     async function fetchData() {
-      try {
-        const [probationData, leaveData, ticketData, onboardingData, incidentData] = await Promise.all([
-          getProbations(),
-          getLeaves(),
-          getTickets(),
-          getOnboardingStatus(),
-          getIncidents(),
-        ]);
-        setProbations(probationData || []);
-        setLeaves(leaveData || []);
-        setTickets(ticketData || []);
-        setOnboarding(onboardingData || null);
-        setIncidents(incidentData || []);
-      } catch (err) {
-        console.error(err);
-        setError('Failed to load dashboard data');
+      const loaders = [
+        {
+          label: 'probations',
+          fn: getProbations,
+          apply: (value) => setProbations(value || []),
+          onError: () => setProbations([]),
+        },
+        {
+          label: 'leaves',
+          fn: getLeaves,
+          apply: (value) => setLeaves(value || []),
+          onError: () => setLeaves([]),
+        },
+        {
+          label: 'tickets',
+          fn: getTickets,
+          apply: (value) => setTickets(value || []),
+          onError: () => setTickets([]),
+        },
+        {
+          label: 'onboarding',
+          fn: getOnboardingStatus,
+          apply: (value) => setOnboarding(value || null),
+          onError: () => setOnboarding(null),
+        },
+        {
+          label: 'incidents',
+          fn: getIncidents,
+          apply: (value) => setIncidents(value || []),
+          onError: () => setIncidents([]),
+        },
+        {
+          label: 'health',
+          fn: getHealthStatus,
+          apply: (value) => setHealth(value || null),
+          onError: () => setHealth(null),
+        },
+      ];
+
+      const results = await Promise.allSettled(loaders.map((loader) => loader.fn()));
+      const errors = [];
+      results.forEach((result, idx) => {
+        if (cancelled) {
+          return;
+        }
+        const loader = loaders[idx];
+        if (result.status === 'fulfilled') {
+          loader.apply(result.value);
+        } else {
+          console.error(`Failed to load ${loader.label}`, result.reason);
+          loader.onError();
+          errors.push(loader.label);
+        }
+      });
+      if (!cancelled) {
+        setError(errors.length ? `Some data is unavailable: ${errors.join(', ')}` : '');
       }
     }
     fetchData();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Compute derived metrics
@@ -114,13 +160,54 @@ export default function DashboardPage() {
   recentEvents.sort((a, b) => new Date(b.date) - new Date(a.date));
   const latestEvents = recentEvents.slice(0, 5);
 
-  // Static system health status
-  const systemHealth = [
-    { name: 'Database', status: 'Healthy', color: 'text-green-400' },
-    { name: 'Email Service', status: 'N/A', color: 'text-gray-400' },
-    { name: 'Audit Chain', status: 'Healthy', color: 'text-green-400' },
-    { name: 'Next Check', status: 'Jan 15, 02:00', color: 'text-gray-400' },
-  ];
+  const formatHealthName = (raw) => raw.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+  const systemHealth = health
+    ? Object.entries(health.components || {}).map(([key, info]) => {
+        const statusValue = info.status || 'unknown';
+        let color = 'text-gray-400';
+        if (statusValue === 'ok') color = 'text-green-400';
+        else if (statusValue === 'degraded') color = 'text-yellow-400';
+        else if (statusValue === 'error' || statusValue === 'failed') color = 'text-red-400';
+        else if (statusValue === 'skipped') color = 'text-blue-400';
+        const statusLabel =
+          statusValue === 'ok'
+            ? 'Healthy'
+            : statusValue.charAt(0).toUpperCase() + statusValue.slice(1);
+        const details = [];
+        if (info.chain_status && info.chain_status !== 'pass') {
+          details.push(`Chain: ${info.chain_status}`);
+        }
+        if (Array.isArray(info.degraded_jobs) && info.degraded_jobs.length > 0) {
+          details.push(`Jobs: ${info.degraded_jobs.join(', ')}`);
+        }
+        if (Array.isArray(info.alerts) && info.alerts.length > 0) {
+          details.push(`Alerts: ${info.alerts.join('; ')}`);
+        }
+        if (Array.isArray(info.issues) && info.issues.length > 0) {
+          details.push(`${info.issues.length} issue(s)`);
+        }
+        if (info.entries_checked !== undefined) {
+          details.push(`${info.entries_checked} entries checked`);
+        }
+        if (info.detail) {
+          details.push(info.detail);
+        }
+        if (info.last_run) {
+          details.push(`Last run: ${new Date(info.last_run).toLocaleString()}`);
+        }
+        if (key === 'email' && info.imap && info.smtp) {
+          details.push(`IMAP ${info.imap.success}/${info.imap.fail} success/fail`);
+          details.push(`SMTP ${info.smtp.success}/${info.smtp.fail} success/fail`);
+        }
+        return {
+          name: formatHealthName(key),
+          status: statusLabel,
+          color,
+          details,
+        };
+      })
+    : [];
 
   return (
     <div className="space-y-6">
@@ -256,14 +343,39 @@ export default function DashboardPage() {
         {/* System health */}
         <div className="bg-gray-800 p-4 rounded-lg shadow">
           <h3 className="text-sm uppercase text-gray-400 mb-3">System Health</h3>
-          <ul className="space-y-1 text-sm">
-            {systemHealth.map((item) => (
-              <li key={item.name} className="flex justify-between">
-                <span>{item.name}</span>
-                <span className={item.color}>{item.status}</span>
-              </li>
-            ))}
-          </ul>
+          {health ? (
+            <>
+              <ul className="space-y-2 text-sm">
+                {systemHealth.map((item) => (
+                  <li key={item.name} className="flex flex-col border-b border-gray-700 pb-2 last:border-b-0 last:pb-0">
+                    <div className="flex justify-between">
+                      <span>{item.name}</span>
+                      <span className={item.color}>{item.status}</span>
+                    </div>
+                    {item.details.length > 0 && (
+                      <div className="mt-1 space-y-1 text-xs text-gray-400">
+                        {item.details.map((line, idx) => (
+                          <div key={`${item.name}-${idx}`}>{line}</div>
+                        ))}
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              {health.issues && health.issues.length > 0 && (
+                <div className="mt-3 border-t border-gray-700 pt-2">
+                  <h4 className="text-xs uppercase text-gray-500 mb-1">Reported Issues</h4>
+                  <ul className="space-y-1 text-xs text-gray-400">
+                    {health.issues.map((issue, idx) => (
+                      <li key={`issue-${idx}`}>• {issue}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-gray-500 text-sm">Health data unavailable.</p>
+          )}
         </div>
       </div>
     </div>
