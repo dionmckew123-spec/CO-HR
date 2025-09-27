@@ -64,6 +64,104 @@ FastAPI backend with PostgreSQL.
   (DSAR) via the `/dsar/{user_id}` endpoint and run a retention cleanup via
   `/retention/cleanup` to purge records older than a chosen number of years.
 
+## Module Specifications
+
+### 5. Support Tickets
+
+- **Severities** – categorise tickets as `minor`, `reportable` or `major`.
+- **Queue Routing** – queues auto-route based on severity to ensure the
+  right responders pick up work immediately.
+- **Ticket Detail** – each ticket exposes its title, description, threaded
+  comments, current assignee and status for rapid triage.
+- **Lockdown Mode** – major incidents include a **Lockdown** toggle that is
+  available to clearance level 4 and above; this freezes edits while the
+  incident is under control.
+- **Email Integration** – outbound SMTP sends notifications, while inbound
+  IMAP automatically converts emails into tickets so teams can work from
+  their inbox.
+
+### 6. Disciplinary & Appeals
+
+- **Disciplinary Stages** – track the full lifecycle across:
+  1. Informal warning (supervisor-led).
+  2. Formal / under investigation (visible to the Incident & Appeals
+     Committee – IAC).
+  3. Termination with immediate access removal.
+  4. Automatic removal for the most severe cases.
+- **Appeals Hub** – employees submit appeals, CL4+ Decision Committee
+  members review them and the system enforces cooldowns between appeals.
+- **Full Audit Trail** – disciplinary and appeals processes are written to
+  employee history so reviewers can see every action.
+
+### 7. Security Levels (SL1–SL5)
+
+- **Global Banner** – a persistent banner shows the current security level
+  (SL1 Normal through SL5 Crisis) across the app.
+- **Dual Control Escalation** – raising the level demands approval from two
+  CL4+/CL5 approvers to prevent unilateral escalation.
+- **Immutable Record** – every change is logged to `SecurityLevelLog` and
+  the audit trail for compliance.
+
+### 8. Global Settings
+
+- **Organisation & Branding** – configure organisation name, logo, support
+  email and timezone.
+- **Leave & Absence** – manage allowance, cycle, pro-rating and leave types
+  in one view.
+- **Email Integration** – review connection status and trigger a test email
+  at any time.
+- **Employee Numbering** – customise numbering patterns and the current
+  counter.
+- **Security & Retention** – toggle two-factor requirements, configure data
+  retention in years and set file upload limits.
+- **Permissions Editor** – edit permissions via a matrix combining clearance
+  levels and role overrides.
+- **Audited Changes** – every update captures before/after diffs for future
+  review.
+
+### 9. Audit & Compliance
+
+- **Comprehensive Auditing** – record every action and sensitive read with
+  the following schema: `ts_utc`, `actor_id`, `role_snapshot`, `ip`, `ua`,
+  `session_id`, `action`, `entity`, `entity_id`, `before_json`,
+  `after_json`, `meta`, `request_id`, `success`, `error`, `hash_prev`,
+  `hash_curr`.
+- **Tamper Evident** – a cryptographic hash chain provides tamper-evidence
+  across the log.
+- **Verification & Export** – expose `/audit/verify-hash-chain` to confirm
+  integrity and offer signed CSV/JSON exports with detached signatures.
+- **Retention Policy** – default retention is four years, with extensions
+  granted by the IAC. A nightly job anonymises or deletes expired data.
+
+### 10. Nightly Jobs (Scheduled Tasks)
+
+- **02:00 UTC Run** – scheduled tasks trigger nightly and cover probation
+  reminders, retention clean-up (excluding legal holds), database backups
+  (rolling 14-day window), audit chain verification and IMAP ticket fetches.
+- **Result Logging** – every job logs to the audit trail and raises alerts
+  on failure so operators can respond quickly.
+
+### 11. Dashboard (Dark Theme)
+
+- **Headline Cards** – display total employees, pending leave, open tickets
+  and upcoming probation endings.
+- **Actionable Widgets** – quick actions for creating leave, opening new
+  tickets, uploading employee files and adding employees.
+- **Operational Insights** – visualise tickets by severity, show probation
+  endings, pending leave approvals and outstanding onboarding items.
+- **Oversight Feeds** – CL4+ users see recent audit events and the system
+  health panel covering database, email, audit chain and nightly job status.
+- **Role Awareness** – widget visibility adapts to the viewer’s clearance
+  and permissions.
+
+### 12. System Health
+
+- **Endpoints** – `/health`, `/ready` and `/metrics` power health checks and
+  infrastructure probes.
+- **Metrics Suite** – track request counts, p95 latency, job durations,
+  IMAP/SMTP success or failure rates and live open ticket counts for
+  capacity planning.
+
 ## Prerequisites
 
 - **Docker and Docker Compose** (simplest way to run the stack), or
