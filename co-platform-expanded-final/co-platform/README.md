@@ -103,23 +103,37 @@ To run services manually:
 1. Install dependencies:
 
    ```bash
-   # Backend
+   # Backend (Python 3.11+ recommended)
    cd backend
+   python -m venv .venv
+   source .venv/bin/activate
+   pip install --upgrade pip
    pip install -r requirements.txt
 
-   # Frontend
+   # Frontend (Node.js 20+)
    cd ../frontend
    npm install
    ```
 
-2. Create a PostgreSQL database (or use SQLite) and set the `DATABASE_URL`
-   environment variable accordingly. Copy `.env.example` to `.env` and
-   configure `JWT_SECRET` and `ALLOWED_ORIGINS`.
+2. Provision a database and environment variables:
+
+   - Start a PostgreSQL instance (for example via Docker: `docker run -p 5432:5432 -e POSTGRES_PASSWORD=password postgres:15`).
+   - Decide on a connection string (e.g. `postgresql://postgres:password@localhost:5432/postgres`).
+   - Export the required environment variables before running the backend:
+
+     ```bash
+     export DATABASE_URL="postgresql://postgres:password@localhost:5432/postgres"
+     export JWT_SECRET="change-me"
+     export ALLOWED_ORIGINS="http://localhost:5173"
+     ```
+
+     > You can use SQLite for quick demos by setting `DATABASE_URL="sqlite:///./dev.db"`.
 
 3. Start the backend:
 
    ```bash
    cd backend
+   source .venv/bin/activate
    uvicorn app.main:app --reload --port 8000
    ```
 
@@ -127,11 +141,26 @@ To run services manually:
 
    ```bash
    cd frontend
-   npm run dev
+   npm run dev -- --host
    ```
 
 5. Access `http://localhost:5173` in your browser and complete the
    Getting Started wizard as above.
+
+## Required Environment Variables
+
+The backend reads configuration exclusively from environment variables. When
+running outside Docker make sure the following are set in your shell or
+process manager:
+
+| Variable | Description | Default (if unset) |
+| --- | --- | --- |
+| `DATABASE_URL` | SQLAlchemy connection string. Use PostgreSQL in production or SQLite for quick demos. | `postgresql://postgres:password@db:5432/postgres` |
+| `JWT_SECRET` | Secret key for signing JSON Web Tokens. Change this to a strong random value. | `supersecret` |
+| `ALLOWED_ORIGINS` | Comma-separated list of origins allowed by CORS. | `http://localhost:5173` |
+
+You can persist these in a shell script (e.g. `backend/env.local`) and `source`
+it before launching the backend.
 
 ## Configuring Webhooks
 
